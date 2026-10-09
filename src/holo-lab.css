@@ -1,0 +1,274 @@
+/*
+ * Glue for the GPL-3.0 holo card port (see LICENSE): how the card sits in a
+ * slot, the HTML layers of the card faces, the deck and the card back.
+ */
+
+.gh-stage .sc-center { height: 500px; }
+.gh-stage[data-stage="dealing"] .sc-center,
+.gh-stage[data-stage="skills"] .sc-center { height: 300px; }
+
+.gh-slot {
+  position: relative;
+  aspect-ratio: 0.718;
+  transition: width 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+}
+/* Up close, and on the way back, a card stays above every other one; it only
+   goes back under its neighbours once it has landed (HoloCard, data-lifted).
+   The card up close is above one still flying home. */
+.gh-slot[data-lifted="true"] { z-index: 60; }
+.gh-slot[data-active="true"] { z-index: 61; }
+/* The card fills its slot; the translater inside is laid out at 640px and
+   scaled down by the original's --card-scale. Its transformed box is what
+   counts for overflow, so a phone never scrolls sideways. */
+.gh-slot > .card {
+  position: absolute;
+  inset: 0;
+  color: #eef0ff;
+}
+.gh-slot .card__translater {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 640px;
+  margin: calc(640px / 0.718 / -2) 0 0 -320px;
+  container-type: inline-size;
+}
+.gh-slot .card__rotator { cursor: pointer; }
+/* The original's 600px perspective and 150px lift suit a ~300px card. This
+   card is laid out at 640px, so the perspective scales with it and the lift
+   goes (stacking is handled by the slot instead). */
+.gh-slot .card__translater,
+.gh-slot .card__rotator { perspective: 1300px; }
+.gh-slot .card__translater { --translate-z: 0.01px; }
+.gh-slot .card__back {
+  position: relative;
+  /* The original leaves the back visible and relies on depth to hide it
+     behind the face; while tilting, Chrome sometimes drew it through the
+     face. Hidden, it only ever shows when the card is turned. */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/*
+ * The face is one flat plane. The original makes every layer of the face
+ * (foil, light, picture) its own plane in the card's 3D space, each nudged
+ * forward by a pixel and each hiding its reverse side. Chrome 155 got that
+ * wrong now and then while the cards tilted: for a frame a card lost layers,
+ * showing only its foil, a grey box, or nothing (measured on 2026-10-09 in
+ * Chrome 155: 16 broken frames in 4 runs of hovering across the cards, 0 in
+ * 8 runs with this). Flat, the layers simply stack by z-index, blend inside
+ * the face, and only the face and the back hide their reverse side.
+ */
+.gh-slot .card__front,
+.gh-slot .card__front > *,
+.gh-slot .card__front > *::before,
+.gh-slot .card__front > *::after {
+  transform-style: flat !important;
+}
+.gh-slot .card__front > *,
+.gh-slot .card__front > *::before,
+.gh-slot .card__front > *::after {
+  transform: none !important;
+}
+.gh-slot .card__front * {
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+}
+.gh-slot .card__front { isolation: isolate; }
+/* The rotator is a button; the faces keep their own alignment. */
+.gh-slot .card__front { text-align: left; font: inherit; }
+
+/* The face layers. */
+.card__front > .gh-face { position: relative; }
+.card__front > .gh-bg {
+  position: relative;
+  overflow: hidden;
+}
+.gh-bg img {
+  position: absolute;
+  inset: -1%;
+  width: 102% !important;
+  height: 102% !important;
+  max-width: none;
+  object-fit: cover;
+  translate: calc((50% - var(--pointer-x)) * 0.012) calc((50% - var(--pointer-y)) * 0.01);
+}
+/* The subject, cut out, sits above the foil (z-index, below). */
+.card__front > .gh-subject {
+  position: relative;
+  overflow: hidden;
+}
+.gh-subject img {
+  position: absolute;
+  inset: -1%;
+  width: 102% !important;
+  height: 102% !important;
+  max-width: none;
+  object-fit: cover;
+  translate: calc((var(--pointer-x) - 50%) * 0.004) calc((var(--pointer-y) - 50%) * 0.003);
+}
+.card__front > .gh-text {
+  position: relative;
+}
+/* A thin metal edge over a full-art card. */
+.card__front > .gh-edge {
+  padding: 1.4cqw;
+  background: linear-gradient(140deg, #f1f4fb, #9aa3b8 30%, #ffffff 50%, #8d96ab 70%, #e8ecf7);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* The face is flat (above), so its layers stack by z-index, and the
+   original lifts the shine to 3. The subject and the text go above it, so
+   the foil sits between them and the background; the light (glare) stays on
+   top. */
+.card__front > .gh-subject { z-index: 4; }
+/* On a skill card, the tag sits above the foil: a copy of the face over the
+   shine with everything hidden but the tag. */
+.card__front > .gh-over { z-index: 4; visibility: hidden; }
+.gh-over .sc-skill-type { visibility: visible; }
+.card__front > .gh-text { z-index: 5; }
+.card__front > .gh-edge { z-index: 6; }
+.gh-slot .card__front > .card__glare { z-index: 7; }
+
+/* The original shows the foil only while the pointer is on the card. Here it
+   stays faintly visible at rest and comes up to full under the pointer. */
+.gh-slot .card[data-rarity] .card__front > .card__shine {
+  opacity: calc(0.65 + var(--card-opacity) * 0.35);
+}
+
+/* The light that follows the pointer (glare) is far too strong at this
+   size, and stronger still up close. */
+.gh-slot .card[data-rarity] .card__front > .card__glare {
+  opacity: calc(var(--card-opacity) * 0.3) !important;
+}
+.gh-slot .card.active[data-rarity] .card__front > .card__glare {
+  opacity: calc(var(--card-opacity) * 0.14) !important;
+}
+
+/* Skill cards: the foil only inside the picture frame, like a holo rare.
+   --clip is set on the face from the card's own art window, measured once
+   the face is laid out. */
+.gh-slot .card.gh-windowed[data-rarity] .card__front > .card__shine,
+.gh-slot .card.gh-windowed[data-rarity] .card__front > .card__shine::before,
+.gh-slot .card.gh-windowed[data-rarity] .card__front > .card__shine::after {
+  clip-path: var(--clip) !important;
+}
+
+/* ------------------------------------------------------------ The deck */
+.gh-deck-stage { padding-top: 56px; }
+.gh-table {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  width: 100%;
+}
+.gh-hero-row { display: flex; justify-content: center; }
+.gh-skills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gh-spot { position: relative; }
+.gh-deal {
+  position: relative;
+  z-index: var(--z);
+  transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--dr));
+  transition: transform 0.55s cubic-bezier(0.5, 0, 0.3, 1);
+}
+/* Dealt in order, each card sliding off the pile to its spot. */
+.gh-stage[data-stage="deal"] .gh-deal,
+.gh-stage[data-stage="table"] .gh-deal {
+  transform: none;
+  transition: transform 0.65s cubic-bezier(0.2, 0.85, 0.25, 1.04) calc(var(--i) * 150ms);
+}
+.gh-stage[data-stage="table"] .gh-deal { z-index: auto; }
+.gh-stage[data-stage="table"] .gh-deal:has([data-lifted="true"]) { z-index: 60; }
+.gh-stage[data-stage="table"] .gh-deal:has([data-active="true"]) { z-index: 61; }
+
+/* The card asking to be picked up or turned over: a little lift and rock,
+   then a rest, again and again. */
+.gh-deal[data-asking="true"] .gh-ask { animation: gh-ask 2.6s cubic-bezier(0.45, 0, 0.3, 1) infinite; }
+.gh-stage[data-stage="table"] .gh-deal[data-asking="true"] .gh-ask { animation-delay: 0.4s; }
+/* On the deck the whole pile rocks together, not just the top card. */
+.gh-stage[data-stage="deck"] .gh-ask { animation: gh-ask 2.6s cubic-bezier(0.45, 0, 0.3, 1) infinite; }
+@keyframes gh-ask {
+  0%, 52%, 100% { transform: none; }
+  60% { transform: translateY(-12px) rotate(-3deg) scale(1.03); }
+  68% { transform: translateY(-12px) rotate(2.5deg) scale(1.03); }
+  76% { transform: translateY(-10px) rotate(-1.5deg) scale(1.03); }
+  86% { transform: translateY(1px) rotate(0) scale(0.995); }
+  92% { transform: none; }
+}
+.gh-deal[data-asking="true"] .card__rotator {
+  animation: gh-ask-glow 2.6s ease-in-out infinite;
+}
+@keyframes gh-ask-glow {
+  0%, 50%, 100% { box-shadow: 0 10px 20px -5px black; }
+  66% { box-shadow: 0 0 0 2px rgba(255, 230, 160, 0.9), 0 0 30px 4px rgba(255, 210, 120, 0.45), 0 18px 30px -8px black; }
+}
+.gh-stage[data-stage="deck"] .card__rotator { cursor: pointer; }
+
+@media (max-width: 760px) {
+  .gh-skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: 100%; }
+  .gh-skills .gh-spot, .gh-skills .gh-deal, .gh-skills .gh-ask { width: 100%; }
+  .gh-skills .gh-slot { width: 100% !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gh-deal, .gh-ask, .gh-deal .card__rotator { transition: none !important; animation: none !important; }
+}
+
+/* ------------------------------------------------------------ The back */
+/* A dark surface lit from the top left with a touch of blue, a steel edge,
+   and a drafting grid drawn in white. Other backs go under data-back. */
+.gh-back {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1.6cqw solid transparent;
+  border-radius: inherit;
+  background:
+    radial-gradient(80% 60% at 15% 0%, rgba(120, 150, 255, 0.16), transparent 70%) padding-box,
+    linear-gradient(150deg, hsl(222 10% 17%) 0%, hsl(30 5% 9.5%) 55%, hsl(30 6% 6%) 100%) padding-box,
+    linear-gradient(135deg, #f3f5fa, #7d8596 28%, #e9ecf3 50%, #5e6576 72%, #cfd4de) border-box;
+}
+.gh-back[data-back="grid"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.12) 0.2cqw, transparent 0.2cqw) 0 0 / 8cqw 8cqw,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0.2cqw, transparent 0.2cqw) 0 0 / 8cqw 8cqw;
+  -webkit-mask: radial-gradient(100% 80% at 50% 40%, #000 20%, transparent 90%);
+  mask: radial-gradient(100% 80% at 50% 40%, #000 20%, transparent 90%);
+}
+
+/* ------------------------------------------------- On the page (bare) */
+/* No stage behind the cards: they sit on the page, which sets the colours. */
+.gh-bare.sc-stage {
+  min-height: 0;
+  padding: 0 0 8px;
+  color: var(--c-ink);
+}
+.gh-bare .sc-hint { color: var(--c-ink-muted); }
+.gh-bare .sc-again { margin-top: 56px; }
+.gh-bare .hp-again {
+  border-color: var(--c-line);
+  background: transparent;
+  color: var(--c-ink);
+}
+.gh-bare .hp-again:hover { background: var(--c-paper-2); }
+/* The original's black drop shadow is made for a dark table. */
+.gh-bare .card:not(.active) .card__rotator:not(:focus) {
+  box-shadow: 0 12px 24px -10px rgba(15, 20, 40, 0.35), 0 2px 8px -3px rgba(15, 20, 40, 0.25);
+}
+.gh-bare .gh-deal[data-asking="true"] .card__rotator { animation-name: gh-ask-glow-ui; }
+@keyframes gh-ask-glow-ui {
+  0%, 50%, 100% { box-shadow: 0 12px 24px -10px rgba(15, 20, 40, 0.35); }
+  66% { box-shadow: 0 0 0 2px var(--c-accent), 0 0 30px 4px color-mix(in srgb, var(--c-accent) 40%, transparent), 0 18px 30px -8px rgba(15, 20, 40, 0.4); }
+}
